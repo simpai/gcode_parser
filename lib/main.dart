@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -12,6 +16,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -24,7 +29,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'GCODE Parser'),
     );
   }
 }
@@ -48,16 +53,46 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  String _slicer = '';
+  String _fileSize = '';
+  int _objCount = 0;
+  List<String> _objList = [];
+  String _buildTime = '';
+  String _version = 'Unknown';
 
-  void _incrementCounter() {
+  void _pickFile() async {
+    // opens storage to pick files and the picked file or files
+    // are assigned into result and if no file is chosen result is null.
+    // you can also toggle "allowMultiple" true or false depending on your need
+    final result = await FilePicker.platform.pickFiles(allowMultiple: false);
+
+    // if no file is picked
+    if (result == null) return;
+
+    // slicer type
+    String objList = '';
+    await File(result.files.first.path!)
+        .openRead()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .forEach((line) => {
+              if (line.contains('Simplify3D')) {_slicer = 'Simplify3D'},
+              if (_slicer == 'Simplify3D' &&
+                  line.contains("Simplify3D(R) Version"))
+                {_version = line},
+              if (_slicer == 'Simplify3D' && line.contains("applyToModels"))
+                {_objList = line.split(',')},
+              if (_slicer == 'Simplify3D' && line.contains('Build time'))
+                {_buildTime = line},
+            });
+
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _slicer = _slicer;
+      _objList = _objList.sublist(1);
+      _objCount = _objList.length;
+      _fileSize = '${result.files.first.size} bytes';
+      _version = _version.split('Version')[1].trim();
+      _buildTime = _buildTime.split(':')[1].trim();
     });
   }
 
@@ -95,21 +130,25 @@ class _MyHomePageState extends State<MyHomePage> {
           // horizontal).
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
+            Text("Slicer: $_slicer $_version"),
+            Text("Build Time: $_buildTime"),
+            Text("File Size: $_fileSize"),
+            Text("Object Count: $_objCount"),
+            for (int i = 0; i < _objList.length; i++)
+              Text("Object ${i + 1}: ${_objList[i]}"),
+            MaterialButton(
+              onPressed: () {
+                _pickFile();
+              },
+              child: Text(
+                'GCODE 불러오기',
+                style: TextStyle(color: Colors.white),
+              ),
+              color: Colors.blue,
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
